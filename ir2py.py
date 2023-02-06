@@ -388,30 +388,42 @@ def translate(model, prefix="", file=sys.stdout):
                                  attr=attr, prefix=prefix, file=file)
         else:
             # Update some attr for ops.
-            # if friendly_name == "Resize_371":
-            #     print("type = ", type)
+            if varname == "Pad_4528":
+                print("type = ", type)
 
             # Remvoe m_pythondiv for Divide
             if type == "Divide":
                 if "m_pythondiv" in attr:
-                    print(f" {friendly_name} attr m_pythondiv is removed")
+                    print(f" {friendly_name} attr: m_pythondiv is removed")
                     del attr['m_pythondiv']
-
             # Convert kernel to kernel_shape for MaxPool
-            if type == "MaxPool":
+            elif type == "MaxPool":
                 if "kernel" in attr:
                     tmpv = attr.pop("kernel", None)
                     attr['kernel_shape'] = tmpv
-                    print(f" {friendly_name} attr kernel replace to kernel_shape")
+                    print(f" {friendly_name} attr: kernel -> kernel_shape")
+            # Clamp attr: min -> min_value
+            elif type == "Clamp":
+                if "min" in attr:
+                    print(f" {friendly_name} attr: min -> min_value")
+                    attr["min_value"] = attr["min"]
+                    del attr["min"]
+                if "max" in attr:
+                    print(f" {friendly_name} attr: max -> max_value")
+                    attr["max_value"] = attr["max"]
+                    del attr["max"]
 
-            if bool(attr):
+            if type == "Pad" and len(inputs) == 4:
+                last_node = inputs.pop()
+                src = f"{varname} = opset.{type2opname(type)}({','.join(inputs)}, {stringify(attr)}, arg_pad_value = {last_node}, name = '{friendly_name}') #wildcard " + \
+                    outputs_shape_str(n)
+                print(f" {friendly_name} inputs nodes: {last_node} -> attr:arg_pad_value")
+            elif bool(attr):
                 src = f"{varname} = opset.{type2opname(type)}({','.join(inputs)}, {stringify(attr)}, name = '{friendly_name}') #wildcard " + \
                     outputs_shape_str(n)
             else:
                 src = f"{varname} = opset.{type2opname(type)}({','.join(inputs)}, name = '{friendly_name}') #wildcard " + \
                     outputs_shape_str(n)
-                # print("name=", friendly_name)
-            # src = f"{prefix}      {varname} = # {type} {inputs} {attr} {rtinfo} {friendly_name}"
 
         if src:
             line = f"{prefix}    {src}"
